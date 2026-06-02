@@ -11,6 +11,18 @@ class OdomPublisher : public rclcpp::Node
 public:
   OdomPublisher() : Node("odom_publisher"), x_(0.0), y_(0.0), theta_(0.0)
   {
+    // Tunable motion parameters: override at launch
+    //   --ros-args -p linear_vel:=1.0
+    // or live at runtime
+    //   ros2 param set /odom_publisher linear_vel 1.5
+    this->declare_parameter<double>("linear_vel", 0.5);
+    this->declare_parameter<double>("angular_vel", 0.1);
+
+    // Publish rate is applied once at startup (the timer is built with this period).
+    // Changing it live would need an on-set callback that recreates the timer.
+    this->declare_parameter<double>("publish_rate_hz", 20.0);
+    dt_ = 1.0 / this->get_parameter("publish_rate_hz").as_double();
+
     publisher_ = this->create_publisher<nav_msgs::msg::Odometry>("/odom/raw", 10);
 
     // Latched QoS: a late-joining publisher of /rover/armed still reaches us,
@@ -23,19 +35,21 @@ public:
       std::bind(&OdomPublisher::armed_callback, this, std::placeholders::_1)
     );
 
-    timer_ = this->create_wall_timer(50ms, std::bind(&OdomPublisher::publish_odom, this));
+    auto period = std::chrono::duration_cast<std::chrono::nanoseconds>(
+      std::chrono::duration<double>(dt_));
+    timer_ = this->create_wall_timer(period, std::bind(&OdomPublisher::publish_odom, this));
     RCLCPP_INFO(this->get_logger(), "Odometry publisher started (DISARMED — waiting to be armed)");
   }
 
 private:
   void publish_odom()
   {
-    double dt = 0.05;
+    double dt = dt_;
     // Disarmed = freeze motion (zero velocity), but KEEP publishing.
     // "Stop" means commanding zeros, not going silent. Silence is the
     // failure signal the Module 4 watchdog listens for — never overload it.
-    double linear_vel = armed_ ? 0.5 : 0.0;
-    double angular_vel = armed_ ? 0.1 : 0.0;
+    double linear_vel  = armed_ ? this->get_parameter("linear_vel").as_double()  : 0.0;
+    double angular_vel = armed_ ? this->get_parameter("angular_vel").as_double() : 0.0;
 
     theta_ += angular_vel * dt;
     x_ += linear_vel * std::cos(theta_) * dt;
@@ -74,6 +88,7 @@ private:
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr armed_sub_;
   rclcpp::TimerBase::SharedPtr timer_;
   double x_, y_, theta_;
+  double dt_ = 0.05;  // seconds between publishes; set from publish_rate_hz at startup
   bool armed_ = false;  // safe default: do not move until explicitly armed
 };
 
