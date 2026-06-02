@@ -35,7 +35,7 @@ implements the **operational-state (arm / disarm) safety layer** in simulation.
 
 | Node | Type | Responsibility |
 |---|---|---|
-| `odom_publisher` | Topic publisher | Publishes mock wheel odometry on `/odom/raw` at 20 Hz. Drives a circular path when **armed**; freezes at zero velocity when **disarmed** (but keeps publishing). |
+| `odom_publisher` | Topic publisher | Publishes mock wheel odometry on `/odom/raw`. Drives a circular path when **armed**; freezes at zero velocity when **disarmed** (but keeps publishing). Speed (`linear_vel`, `angular_vel`) and `publish_rate_hz` are ROS 2 parameters, tunable at launch or runtime. |
 | `odom_subscriber` | Topic subscriber | Diagnostic logger — echoes received position and heading. |
 | `safety_status_service` | Service + publisher | `/rover/set_armed` service toggles the armed state and publishes it (latched) on `/rover/armed`. |
 
